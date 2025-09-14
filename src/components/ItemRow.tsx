@@ -8,6 +8,7 @@ import { Card } from "./Card";
 interface ItemRowProps {
   item: Item;
   onPress?: () => void;
+  onLongPress?: () => void;
   onAddToCart?: () => void;
   onUpdateQuantity?: (delta: number) => void;
   cartQuantity?: number;
@@ -20,6 +21,7 @@ interface ItemRowProps {
 export const ItemRow: React.FC<ItemRowProps> = ({
   item,
   onPress,
+  onLongPress,
   onAddToCart,
   onUpdateQuantity,
   cartQuantity = 0,
@@ -34,7 +36,12 @@ export const ItemRow: React.FC<ItemRowProps> = ({
 
   return (
     <Card style={styles.container}>
-      <TouchableOpacity onPress={onPress} disabled={!onPress}>
+      <TouchableOpacity
+        onPress={onPress}
+        onLongPress={onLongPress}
+        disabled={!onPress && !onLongPress}
+        delayLongPress={500}
+      >
         <View style={styles.content}>
           {/* Item Image */}
           <View style={styles.imageContainer}>

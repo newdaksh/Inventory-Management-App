@@ -143,17 +143,21 @@ class InventoryService {
     try {
       console.log("[InventoryService] Updating item:", itemId, itemData);
 
-      const response = await apiService.axios.post(this.getUrl(), {
-        operation: "UPDATE",
+      const response = await apiService.axios.put(this.getUrl(), {
         itemId,
         data: itemData,
       });
 
       console.log("[InventoryService] Item updated:", response.data);
-      return response.data;
+
+      // Return the updated item with the original itemId
+      return {
+        itemId,
+        ...itemData,
+      } as Item;
     } catch (error) {
       console.error("[InventoryService] Error updating item:", error);
-      throw error;
+      throw this.handleError(error);
     }
   }
 
@@ -161,15 +165,14 @@ class InventoryService {
     try {
       console.log("[InventoryService] Deleting item:", itemId);
 
-      await apiService.axios.post(this.getUrl(), {
-        operation: "DELETE",
-        itemId,
+      await apiService.axios.delete(this.getUrl(), {
+        data: { itemId },
       });
 
       console.log("[InventoryService] Item deleted successfully");
     } catch (error) {
       console.error("[InventoryService] Error deleting item:", error);
-      throw error;
+      throw this.handleError(error);
     }
   }
 

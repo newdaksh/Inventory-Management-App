@@ -6,3 +6,5 @@ export { ItemRow } from "./ItemRow";
 export { Loading } from "./Loading";
 export { ModalConfirm } from "./ModalConfirm";
 export { AddItemModal } from "./AddItemModal";
+export { UpdateItemModal } from "./UpdateItemModal";
+export { ItemActionModal } from "./ItemActionModal";

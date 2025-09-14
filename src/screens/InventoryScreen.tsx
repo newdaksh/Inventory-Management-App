@@ -9,7 +9,15 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Card, Button, Loading, AddItemModal } from "../components";
+import {
+  Card,
+  Button,
+  Loading,
+  AddItemModal,
+  UpdateItemModal,
+  ItemActionModal,
+  ItemRow,
+} from "../components";
 import { Item } from "../types";
 import { CONFIG } from "../CONFIG";
 import inventoryService from "../services/inventoryService";
@@ -32,6 +40,9 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showActionModal, setShowActionModal] = useState(false);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
 
   const MOCK_MODE = CONFIG.MOCK_MODE ?? false;
   const CURRENCY = CONFIG.CURRENCY ?? "$";
@@ -177,60 +188,39 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
     );
   };
 
+  // Handler functions for long press functionality
+  const handleItemLongPress = (item: Item) => {
+    setSelectedItem(item);
+    setShowActionModal(true);
+  };
+
+  const handleUpdateItem = () => {
+    setShowUpdateModal(true);
+  };
+
+  const handleDeleteItem = () => {
+    if (selectedItem) {
+      deleteItem(selectedItem.itemId, selectedItem.name);
+    }
+  };
+
+  const handleCloseActionModal = () => {
+    setShowActionModal(false);
+    setSelectedItem(null);
+  };
+
+  const handleCloseUpdateModal = () => {
+    setShowUpdateModal(false);
+    setSelectedItem(null);
+  };
+
   const renderItem = ({ item }: { item: Item }) => {
-    const isLowStock = (item.qty ?? 0) <= LOW_STOCK_THRESHOLD;
-    const today = new Date();
-    const expiryDate = item.expiryDate ? new Date(item.expiryDate) : null;
-    const isExpired = expiryDate && expiryDate < today;
-    const isExpiringSoon =
-      expiryDate &&
-      expiryDate > today &&
-      expiryDate <= new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
-
     return (
-      <Card style={styles.itemCard}>
-        <View style={styles.itemHeader}>
-          <Text style={styles.itemName} numberOfLines={2}>
-            {item.name}
-          </Text>
-          <View style={styles.statusIcons}>
-            {isLowStock && (
-              <Ionicons name="warning" size={16} color="#FF9500" />
-            )}
-            {isExpired && (
-              <Ionicons name="alert-circle" size={16} color="#DC3545" />
-            )}
-            {isExpiringSoon && (
-              <Ionicons name="time" size={16} color="#FF9500" />
-            )}
-          </View>
-        </View>
-
-        <View style={styles.itemDetails}>
-          <Text style={styles.itemDetail}>Stock: {item.qty ?? 0}</Text>
-          <Text style={styles.itemDetail}>
-            Price: {CURRENCY}
-            {(item.price ?? 0).toFixed(2)}
-          </Text>
-          {item.expiryDate && (
-            <Text
-              style={[
-                styles.itemDetail,
-                isExpired && styles.expiredText,
-                isExpiringSoon && styles.expiringSoonText,
-              ]}
-            >
-              Expires: {new Date(item.expiryDate).toLocaleDateString()}
-            </Text>
-          )}
-        </View>
-
-        {item.description && (
-          <Text style={styles.itemDescription} numberOfLines={2}>
-            {item.description}
-          </Text>
-        )}
-      </Card>
+      <ItemRow
+        item={item}
+        onLongPress={() => handleItemLongPress(item)}
+        showAdminControls={false} // We'll use long press instead
+      />
     );
   };
 
@@ -304,6 +294,21 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
         visible={showAddModal}
         onClose={() => setShowAddModal(false)}
         onSubmit={addItem}
+      />
+
+      <ItemActionModal
+        visible={showActionModal}
+        onClose={handleCloseActionModal}
+        onUpdate={handleUpdateItem}
+        onDelete={handleDeleteItem}
+        item={selectedItem}
+      />
+
+      <UpdateItemModal
+        visible={showUpdateModal}
+        onClose={handleCloseUpdateModal}
+        onUpdate={updateItem}
+        item={selectedItem}
       />
     </View>
   );
