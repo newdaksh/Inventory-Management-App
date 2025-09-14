@@ -136,6 +136,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error("[Auth] Error initializing auth:", error);
       dispatch({ type: "CLEAR_USER" });
+    } finally {
+      // Ensure loading is always set to false after initialization
+      dispatch({ type: "SET_LOADING", payload: false });
     }
   };
 
