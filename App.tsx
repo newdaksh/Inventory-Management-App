@@ -13,6 +13,7 @@ import { Welcome } from "./src/screens/Welcome";
 import { AdminLogin } from "./src/screens/AdminLogin";
 import { CustomerLogin } from "./src/screens/CustomerLogin";
 import { AdminDashboard } from "./src/screens/AdminDashboard";
+import { InventoryScreen } from "./src/screens/InventoryScreen";
 // Additional screens would be imported here
 
 import {
@@ -59,6 +60,14 @@ const AdminNavigator = () => {
         options={{
           title: "Dashboard",
           drawerLabel: "Dashboard",
+        }}
+      />
+      <AdminDrawer.Screen
+        name="Inventory"
+        component={InventoryScreen}
+        options={{
+          title: "Inventory",
+          drawerLabel: "Inventory",
         }}
       />
       {/* Additional admin screens would be added here */}
