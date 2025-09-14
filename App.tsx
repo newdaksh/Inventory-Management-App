@@ -1,7 +1,6 @@
 import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createStackNavigator } from "@react-navigation/stack";
-import { createDrawerNavigator } from "@react-navigation/drawer";
 import { StatusBar } from "expo-status-bar";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { AuthProvider, useAuth } from "./src/hooks/useAuth";
@@ -14,6 +13,7 @@ import { AdminLogin } from "./src/screens/AdminLogin";
 import { CustomerLogin } from "./src/screens/CustomerLogin";
 import { AdminDashboard } from "./src/screens/AdminDashboard";
 import { InventoryScreen } from "./src/screens/InventoryScreen";
+import { TestDashboard } from "./src/screens/TestDashboard";
 // Additional screens would be imported here
 
 import {
@@ -24,7 +24,7 @@ import {
 
 const RootStack = createStackNavigator<RootStackParamList>();
 const AuthStack = createStackNavigator<AuthStackParamList>();
-const AdminDrawer = createDrawerNavigator<AdminDrawerParamList>();
+const AdminStack = createStackNavigator<AdminDrawerParamList>(); // Changed from drawer to stack
 
 // Auth Stack Navigator
 const AuthNavigator = () => {
@@ -40,38 +40,33 @@ const AuthNavigator = () => {
   );
 };
 
-// Admin Drawer Navigator
+// Admin Navigator (using stack instead of drawer to avoid Reanimated issues)
 const AdminNavigator = () => {
   return (
-    <AdminDrawer.Navigator
+    <AdminStack.Navigator
       initialRouteName="Dashboard"
       screenOptions={{
+        headerShown: true,
         headerStyle: { backgroundColor: "#007AFF" },
         headerTintColor: "#FFFFFF",
         headerTitleStyle: { fontWeight: "bold" },
-        drawerStyle: { backgroundColor: "#F8F9FA" },
-        drawerActiveTintColor: "#007AFF",
-        drawerInactiveTintColor: "#666666",
       }}
     >
-      <AdminDrawer.Screen
+      <AdminStack.Screen
         name="Dashboard"
         component={AdminDashboard}
         options={{
           title: "Dashboard",
-          drawerLabel: "Dashboard",
         }}
       />
-      <AdminDrawer.Screen
+      <AdminStack.Screen
         name="Inventory"
         component={InventoryScreen}
         options={{
           title: "Inventory",
-          drawerLabel: "Inventory",
         }}
       />
-      {/* Additional admin screens would be added here */}
-    </AdminDrawer.Navigator>
+    </AdminStack.Navigator>
   );
 };
 

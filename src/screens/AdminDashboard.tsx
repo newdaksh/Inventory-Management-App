@@ -11,12 +11,18 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../hooks/useAuth";
 import { Card, Button, Loading } from "../components";
-import { Item } from "../types";
+import { Item, AdminDrawerParamList } from "../types";
 import { CONFIG } from "../CONFIG";
 import apiService from "../services/api";
+import { DrawerNavigationProp } from "@react-navigation/drawer";
+
+type AdminDashboardNavigationProp = DrawerNavigationProp<
+  AdminDrawerParamList,
+  "Dashboard"
+>;
 
 interface AdminDashboardProps {
-  navigation: any;
+  navigation: AdminDashboardNavigationProp;
 }
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({
@@ -133,11 +139,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       calculateStats(inventoryItems || []);
     } catch (error: any) {
       console.error("[Dashboard] Error loading data:", error);
-      Alert.alert(
-        "Error",
-        "Failed to load dashboard data. Please try again.",
-        [{ text: "OK" }]
-      );
+      Alert.alert("Error", "Failed to load dashboard data. Please try again.", [
+        { text: "OK" },
+      ]);
     } finally {
       setLoading(false);
     }
@@ -276,7 +280,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </Card>
 
         <Card
-          style={[styles.statCard, stats.expiredItems > 0 ? styles.dangerStat : null]}
+          style={[
+            styles.statCard,
+            stats.expiredItems > 0 ? styles.dangerStat : null,
+          ]}
         >
           <View style={styles.statContent}>
             <Ionicons
@@ -310,7 +317,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           />
           <Button
             title="View Orders"
-            onPress={() => navigation.navigate("Orders")}
+            onPress={() => {
+              // TODO: Add orders screen
+              Alert.alert("Info", "Orders screen will be added soon");
+            }}
             variant="secondary"
             style={styles.actionButton}
           />

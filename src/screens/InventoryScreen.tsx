@@ -13,9 +13,16 @@ import { Card, Button, Loading, AddItemModal } from "../components";
 import { Item } from "../types";
 import { CONFIG } from "../CONFIG";
 import inventoryService from "../services/inventoryService";
+import { DrawerNavigationProp } from "@react-navigation/drawer";
+import { AdminDrawerParamList } from "../types";
+
+type InventoryScreenNavigationProp = DrawerNavigationProp<
+  AdminDrawerParamList,
+  "Inventory"
+>;
 
 interface InventoryScreenProps {
-  navigation: any;
+  navigation: InventoryScreenNavigationProp;
 }
 
 export const InventoryScreen: React.FC<InventoryScreenProps> = ({
