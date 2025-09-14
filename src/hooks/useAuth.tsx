@@ -144,12 +144,112 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       dispatch({ type: "SET_LOADING", payload: true });
 
       const response = await apiService.adminLogin({ email, password });
-      // response should contain token property when successful
-      const token = response.token || (response?.data && response.data.token);
 
+      // ---- Robust token extraction ----
+      // possible shapes:
+      // 1) { token: "..." }
+      // 2) { data: { token: "..." } }
+      // 3) resp.data is string token
+      // 4) [ { token: "..." } ] (array)
+      // 5) resp is string token
+      // Always log the response for debugging during dev:
+      console.log("[Auth] raw adminLogin response:", response);
+
+      // let token: string | null = null;
+
+      // If apiService.adminLogin returned axios resp.data, it may already be object or a string
+      // if (!response) {
+      //   token = null;
+      // } else if (typeof response === "string") {
+      //   token = response;
+      // } else if (typeof response === "object") {
+      //   // common cases
+      //   if ("token" in response && typeof (response as any).token === "string") {
+      //     token = (response as any).token;
+      //   } else if ("data" in response && response.data && typeof response.data.token === "string") {
+      //     token = response.data.token;
+      //   } else if (Array.isArray(response) && response.length > 0 && typeof response[0].token === "string") {
+      //     token = response[0].token;
+      //   } else if (typeof (response as any).result === "string") {
+      //     // sometimes wrappers
+      //     token = (response as any).result;
+      //   } else {
+      //     // fallback: stringify so developer can inspect it
+      //     console.warn("[Auth] adminLogin returned unknown shape:", response);
+      //   }
+      // }
+
+      let token: string | null = null;
+
+      // case 1: normal { token: "..." }
+      if (response?.token) {
+        token = response.token;
+      }
+      // case 2: n8n proxy wrapper { message: "{\"token\":\"...\"}" }
+      else if (typeof response?.message === "string") {
+        try {
+          const parsed = JSON.parse(response.message);
+          if (parsed?.token) {
+            token = parsed.token;
+          }
+        } catch (err) {
+          console.warn("[Auth] Failed to parse response.message", err);
+        }
+      }
+      // case 3: n8n proxy wrapper { upstreamBody: "{\"token\":\"...\"}" }
+      else if (typeof response?.upstreamBody === "string") {
+        try {
+          const parsed = JSON.parse(response.upstreamBody);
+          if (parsed?.token) {
+            token = parsed.token;
+          }
+        } catch (err) {
+          console.warn("[Auth] Failed to parse response.upstreamBody", err);
+        }
+      }
+
+      // If token still null, check if apiService itself stored a token or proxy endpoint
       if (!token) {
+        // try reading stored token (api service cross-platform getter)
+        try {
+          const stored = await apiService.getStoredToken?.();
+          if (stored) {
+            console.log("[Auth] Found token in storage:", !!stored);
+            token = stored;
+          }
+        } catch (err) {
+          // ignore
+        }
+      }
+
+      // Final check: sometimes token is returned wrapped in data.token (two-level)
+      if (
+        !token &&
+        response &&
+        (response as any).data &&
+        typeof (response as any).data === "object"
+      ) {
+        const maybe = (response as any).data;
+        if (typeof maybe.token === "string") token = maybe.token;
+      }
+
+      // If we still don't have a token, fail with helpful diagnostic info
+      if (!token) {
+        console.error(
+          "[Auth] Admin sign in error - no token found. Raw response:",
+          response
+        );
         throw new Error("Invalid admin token received");
       }
+
+      // quick sanity: token looks like JWT? (three parts separated by '.')
+      const tokenLooksLikeJWT = token.split && token.split(".").length === 3;
+      if (!tokenLooksLikeJWT) {
+        console.warn("[Auth] Token doesn't look like JWT. Received:", token);
+        // still proceed if you want, or fail — here we fail to avoid incorrect assumptions
+        throw new Error("Invalid admin token content");
+      }
+      // ---- end robust extraction ----
 
       const payload = decodeJWTPayload(token);
 
@@ -161,20 +261,37 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           role: "admin",
         };
 
-        // store token and set axios header (apiService already stored it in adminLogin but double-set is ok)
+        // store token and set axios header
         await apiService.setToken(token);
+
+        // Persist token & user type
+        try {
+          await SecureStore.setItemAsync(CONFIG.JWT_STORAGE_KEY, token);
+          await SecureStore.setItemAsync(CONFIG.USER_TYPE_KEY, "admin");
+        } catch (err) {
+          // If SecureStore is not available on web, apiService.setToken should have fallen back to localStorage.
+          console.warn("[Auth] SecureStore write failed (maybe web).", err);
+        }
 
         dispatch({
           type: "SET_USER",
           payload: { user, token, userType: "admin" },
         });
-        console.log("[Auth] Admin signed in successfully");
+        console.log("[Auth] Admin signed in successfully (token saved)");
       } else {
+        console.error(
+          "[Auth] Admin sign in error - token payload invalid:",
+          payload
+        );
         throw new Error("Invalid admin token content");
       }
     } catch (error: any) {
       dispatch({ type: "SET_LOADING", payload: false });
-      console.error("[Auth] Admin sign in error:", error?.message || error);
+      console.error(
+        "[Auth] Admin sign in error:",
+        error?.message || error,
+        error
+      );
       throw error;
     }
   };
@@ -208,11 +325,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         await apiService.setToken(token);
 
+        // Persist token & user type so initializeAuth can restore session later
+        await SecureStore.setItemAsync(CONFIG.JWT_STORAGE_KEY, token);
+        await SecureStore.setItemAsync(CONFIG.USER_TYPE_KEY, "customer");
+
         dispatch({
           type: "SET_USER",
           payload: { user, token, userType: "customer" },
         });
-        console.log("[Auth] Customer signed in successfully");
+        console.log("[Auth] Customer signed in successfully (token saved)");
       } else {
         throw new Error("Invalid customer token received");
       }
@@ -235,11 +356,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const clearStoredAuth = async () => {
     await apiService.clearToken();
-    // also clear user type key
+    // clear both JWT and user type keys
     try {
       await SecureStore.deleteItemAsync(CONFIG.USER_TYPE_KEY);
+      await SecureStore.deleteItemAsync(CONFIG.JWT_STORAGE_KEY);
+      console.log("[Auth] Cleared stored auth keys");
     } catch (e) {
-      // ignore
+      console.warn("[Auth] Error clearing stored auth keys:", e);
     }
   };
 
@@ -283,22 +406,39 @@ export const useAuth = (): AuthContextType => {
 };
 
 // Utility function to decode JWT payload (client-side only, for UI purposes)
+// Utility function to decode JWT payload (client-side only)
 const decodeJWTPayload = (token: string): any => {
   try {
+    if (!token) return null;
     const parts = token.split(".");
-    if (parts.length !== 3) {
-      throw new Error("Invalid JWT format");
+    if (parts.length !== 3) return null;
+    // base64url -> base64
+    let payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    while (payload.length % 4) payload += "=";
+
+    // decode base64 safely
+    let decoded: string;
+    if (typeof atob === "function") {
+      decoded = atob(payload);
+    } else if (typeof Buffer !== "undefined") {
+      decoded = Buffer.from(payload, "base64").toString("utf8");
+    } else if (typeof globalThis !== "undefined" && (globalThis as any).atob) {
+      decoded = (globalThis as any).atob(payload);
+    } else {
+      // last-resort: fromCharCode
+      decoded = decodeURIComponent(
+        payload
+          .split("")
+          .map(function (c) {
+            return "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2);
+          })
+          .join("")
+      );
     }
 
-    const payload = parts[1];
-    // Add padding if necessary
-    const paddedPayload = payload + "=".repeat((4 - (payload.length % 4)) % 4);
-
-    // atob may not be available in all RN environments; if not, you can add a small base64 decode helper.
-    const decoded = typeof atob === "function" ? atob(paddedPayload) : Buffer.from(paddedPayload, "base64").toString("utf8");
     return JSON.parse(decoded);
-  } catch (error) {
-    console.error("[Auth] Error decoding JWT:", error);
+  } catch (err) {
+    console.error("[Auth] Error decoding JWT:", err);
     return null;
   }
 };
