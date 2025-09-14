@@ -3,13 +3,12 @@ import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   StatusBar,
   Animated,
   Easing,
   Dimensions,
   SafeAreaView,
-  Platform, // Added for platform detection
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Button, Card } from "../components";
@@ -28,19 +27,21 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
-  const bounceAnim = useRef(new Animated.Value(1)).current; // FIX: Start at 1 for immediate visibility
+  const bounceAnim = useRef(new Animated.Value(1)).current;
 
-  // FIX: Detect web platform to disable native driver
+  // Platform detection for web compatibility
   const isWeb = Platform.OS === 'web';
   const nativeDriver = !isWeb;
 
   useEffect(() => {
+    // Entrance animations sequence
     Animated.sequence([
+      // Initial fade in and slide up
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
           duration: 1000,
-          useNativeDriver: nativeDriver, // FIX: Conditional
+          useNativeDriver: nativeDriver,
           easing: Easing.out(Easing.quad),
         }),
         Animated.timing(slideAnim, {
@@ -56,63 +57,90 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
           easing: Easing.out(Easing.back(1.2)),
         }),
       ]),
+      // Icon rotation animation
       Animated.timing(rotateAnim, {
         toValue: 1,
         duration: 600,
         useNativeDriver: nativeDriver,
         easing: Easing.out(Easing.quad),
       }),
-      // FIX: Removed bounceAnim timing since initial is now 1; content fades in with header
     ]).start();
 
-    const rotationLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(rotateAnim, {
-          toValue: 1.1,
-          duration: 2000,
-          useNativeDriver: nativeDriver,
-          easing: Easing.inOut(Easing.sin),
-        }),
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: nativeDriver,
-          easing: Easing.inOut(Easing.sin),
-        }),
-      ])
-    );
-
-    const timeout = setTimeout(() => rotationLoop.start(), 1500);
-
-    return () => {
-      clearTimeout(timeout);
-      rotationLoop.stop();
-    };
+    // Continuous subtle rotation animation for icon
+    if (!isWeb) {
+      const rotationLoop = Animated.loop(
+        Animated.sequence([
+          Animated.timing(rotateAnim, {
+            toValue: 1.1,
+            duration: 2000,
+            useNativeDriver: true,
+            easing: Easing.inOut(Easing.sin),
+          }),
+          Animated.timing(rotateAnim, {
+            toValue: 1,
+            duration: 2000,
+            useNativeDriver: true,
+            easing: Easing.inOut(Easing.sin),
+          }),
+        ])
+      );
+      
+      const timeout = setTimeout(() => rotationLoop.start(), 1500);
+      
+      return () => {
+        clearTimeout(timeout);
+        rotationLoop.stop();
+      };
+    }
   }, []);
 
-  // FIX: Use a local scale for button press effect instead of shared scaleAnim
-  const buttonScale = useRef(new Animated.Value(1)).current;
+  const handleAdminPress = () => {
+    if (!isWeb) {
+      // Add press animation before navigation
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 0.95,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        navigation.navigate("AdminLogin");
+      });
+    } else {
+      navigation.navigate("AdminLogin");
+    }
+  };
 
-  const handlePress = (route: string) => {
-    Animated.sequence([
-      Animated.timing(buttonScale, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: nativeDriver,
-      }),
-      Animated.timing(buttonScale, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: nativeDriver,
-      }),
-    ]).start(() => {
-      navigation.navigate(route);
-    });
+  const handleCustomerPress = () => {
+    if (!isWeb) {
+      // Add press animation before navigation
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 0.95,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        navigation.navigate("CustomerLogin");
+      });
+    } else {
+      navigation.navigate("CustomerLogin");
+    }
   };
 
   const spin = rotateAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
+    outputRange: ['0deg', '360deg'],
   });
 
   return (
@@ -122,7 +150,7 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
         backgroundColor={ThemeColors.primary}
       />
 
-      {/* Animated Background Gradient (low z-index so content sits above it) */}
+      {/* Animated Background Gradient */}
       <LinearGradient
         colors={[
           ThemeColors.primary,
@@ -131,7 +159,7 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
         ]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[StyleSheet.absoluteFillObject, styles.gradient]}
+        style={StyleSheet.absoluteFillObject}
       />
 
       {/* Floating Background Elements */}
@@ -158,26 +186,29 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
       />
 
       {/* Header */}
-      <Animated.View
+      <Animated.View 
         style={[
           styles.header,
           {
             opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+            transform: nativeDriver ? [
+              { translateY: slideAnim },
+              { scale: scaleAnim },
+            ] : [],
           },
         ]}
       >
-        <Animated.View
+        <Animated.View 
           style={[
             styles.iconContainer,
             {
-              transform: [{ rotate: spin }],
+              transform: nativeDriver ? [{ rotate: spin }] : [],
             },
           ]}
         >
           <Ionicons name="business" size={60} color="#FFFFFF" />
         </Animated.View>
-
+        
         <Animatable.Text
           animation="fadeInUp"
           delay={500}
@@ -186,7 +217,7 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
         >
           Inventory Management
         </Animatable.Text>
-
+        
         <Animatable.Text
           animation="fadeInUp"
           delay={700}
@@ -198,26 +229,26 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
       </Animated.View>
 
       {/* Login Options */}
-      <Animated.View
+      <Animated.View 
         style={[
           styles.content,
           {
-            opacity: fadeAnim, // Still fades in with header
-            transform: [{ scale: bounceAnim }], // Now starts at 1
+            opacity: fadeAnim,
+            transform: nativeDriver ? [{ scale: bounceAnim }] : [],
           },
         ]}
       >
         <Animatable.View
           animation="slideInLeft"
-          delay={400} // FIX: Reduced delay for faster appearance
+          delay={900}
           duration={800}
           easing="ease-out"
         >
-          <Card style={[styles.optionCard, styles.debugCard]}>
+          <Card style={styles.optionCard}>
             <View style={styles.option}>
               <Animatable.View
                 animation="bounceIn"
-                delay={600} // FIX: Reduced delay
+                delay={1100}
                 duration={600}
                 style={styles.optionIcon}
               >
@@ -234,29 +265,27 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-            <Animatable.View animation="fadeInUp" delay={800} duration={600}> // FIX: Reduced delay
-              <Animated.View style={{ transform: [{ scale: buttonScale }] }}> // FIX: Apply local scale to button container
-                <Button
-                  title="Admin Login"
-                  onPress={() => handlePress("AdminLogin")}
-                  style={styles.optionButton}
-                />
-              </Animated.View>
+            <Animatable.View animation="fadeInUp" delay={1300} duration={600}>
+              <Button
+                title="Admin Login"
+                onPress={handleAdminPress}
+                style={styles.optionButton}
+              />
             </Animatable.View>
           </Card>
         </Animatable.View>
 
         <Animatable.View
           animation="slideInRight"
-          delay={500} // FIX: Reduced delay
+          delay={1100}
           duration={800}
           easing="ease-out"
         >
-          <Card style={[styles.optionCard, styles.debugCard]}>
+          <Card style={styles.optionCard}>
             <View style={styles.option}>
               <Animatable.View
                 animation="bounceIn"
-                delay={700} // FIX: Reduced delay
+                delay={1300}
                 duration={600}
                 style={styles.optionIcon}
               >
@@ -269,15 +298,13 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
                 </Text>
               </View>
             </View>
-            <Animatable.View animation="fadeInUp" delay={900} duration={600}> // FIX: Reduced delay
-              <Animated.View style={{ transform: [{ scale: buttonScale }] }}> // FIX: Apply local scale
-                <Button
-                  title="Customer Login"
-                  onPress={() => handlePress("CustomerLogin")}
-                  variant="secondary"
-                  style={styles.optionButton}
-                />
-              </Animated.View>
+            <Animatable.View animation="fadeInUp" delay={1500} duration={600}>
+              <Button
+                title="Customer Login"
+                onPress={handleCustomerPress}
+                variant="secondary"
+                style={styles.optionButton}
+              />
             </Animatable.View>
           </Card>
         </Animatable.View>
@@ -286,7 +313,7 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
       {/* Footer */}
       <Animatable.View
         animation="fadeInUp"
-        delay={1000} // FIX: Reduced delay slightly
+        delay={1700}
         duration={800}
         style={styles.footer}
       >
@@ -300,16 +327,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: ThemeColors.primary,
-    position: "relative", // ensure zIndex works correctly
-  },
-  gradient: {
-    zIndex: 0, // gradient sits below content
   },
   floatingElement: {
-    position: "absolute",
-    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    position: 'absolute',
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 50,
-    zIndex: 1,
   },
   element1: {
     width: 100,
@@ -330,13 +352,11 @@ const styles = StyleSheet.create({
     right: width * 0.1,
   },
   header: {
-    flex: 0.30,
+    flex: 0.35,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 20,
-    paddingTop: 40,
-    zIndex: 3,
-    position: "relative",
+    paddingTop: 50,
   },
   iconContainer: {
     width: 100,
@@ -381,8 +401,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 10,
     justifyContent: "center",
-    zIndex: 4,
-    position: "relative",
   },
   optionCard: {
     marginBottom: 12,
@@ -396,14 +414,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 12,
     elevation: 6,
-    transform: [{ scale: 1 }],
-    zIndex: 5,
-    position: "relative",
-  },
-  // debugCard helps show the card border clearly on web — remove when done
-  debugCard: {
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.06)",
   },
   option: {
     flexDirection: "row",
@@ -458,8 +468,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingBottom: 20,
-    zIndex: 3,
-    position: "relative",
   },
   footerText: {
     fontSize: 12,
