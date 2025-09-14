@@ -8,12 +8,14 @@ export const CONFIG = {
   // These are the webhook paths under your N8N_WEBHOOK_URL
   ADMIN_LOGIN_PATH: "auth/admin/login",
   CUSTOMER_LOGIN_PATH: "auth/customer/login",
-  INVENTORY_ITEMS: "/inventory/items",
+  INVENTORY_ITEMS: "inventory/items",
   LOW_STOCK_THRESHOLD: 5, // threshold for low stock warning
 
   // Currency symbol for display
   CURRENCY: "$",
 
+  // Development mode - set to true to use mock data instead of real API
+  MOCK_MODE: false, // Set to true for testing without real API
 
   // Keys used to store JWT and user type in SecureStore
   JWT_STORAGE_KEY: "APP_JWT",

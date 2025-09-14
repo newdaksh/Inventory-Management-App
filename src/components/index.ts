@@ -5,3 +5,4 @@ export { Card } from "./Card";
 export { ItemRow } from "./ItemRow";
 export { Loading } from "./Loading";
 export { ModalConfirm } from "./ModalConfirm";
+export { AddItemModal } from "./AddItemModal";

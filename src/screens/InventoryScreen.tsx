@@ -9,10 +9,10 @@ import {
   TouchableOpacity,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Card, Button, Loading } from "../components";
+import { Card, Button, Loading, AddItemModal } from "../components";
 import { Item } from "../types";
 import { CONFIG } from "../CONFIG";
-import apiService from "../services/api";
+import inventoryService from "../services/inventoryService";
 
 interface InventoryScreenProps {
   navigation: any;
@@ -24,36 +24,15 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
-  const MOCK_MODE = (CONFIG as any).MOCK_MODE ?? false;
-  const CURRENCY = (CONFIG as any).CURRENCY ?? "₹";
-  const LOW_STOCK_THRESHOLD = (CONFIG as any).LOW_STOCK_THRESHOLD ?? 5;
+  const MOCK_MODE = CONFIG.MOCK_MODE ?? false;
+  const CURRENCY = CONFIG.CURRENCY ?? "$";
+  const LOW_STOCK_THRESHOLD = CONFIG.LOW_STOCK_THRESHOLD ?? 5;
 
   useEffect(() => {
     loadInventoryData();
   }, []);
-
-  const extractUpstreamData = (proxyResp: any): any => {
-    if (proxyResp == null) return null;
-
-    if (typeof proxyResp.upstreamBody === "string") {
-      try {
-        return JSON.parse(proxyResp.upstreamBody);
-      } catch (e) {
-        return { raw: proxyResp.upstreamBody };
-      }
-    }
-
-    if (proxyResp.upstreamBody && typeof proxyResp.upstreamBody === "object") {
-      return proxyResp.upstreamBody;
-    }
-
-    if (typeof proxyResp === "object" && !proxyResp.upstreamBody) {
-      return proxyResp;
-    }
-
-    return null;
-  };
 
   const loadInventoryData = async () => {
     try {
@@ -61,50 +40,64 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
       let inventoryItems: Item[] = [];
 
       if (MOCK_MODE) {
-        if (typeof (apiService as any).getMockInventoryItems === "function") {
-          inventoryItems = await (apiService as any).getMockInventoryItems();
-        } else {
-          inventoryItems = [];
-        }
+        // Mock data for testing
+        inventoryItems = [
+          {
+            itemId: "1",
+            name: "Sample Item 1",
+            qty: 10,
+            price: 29.99,
+            description: "Sample description",
+            expiryDate: "2024-12-31",
+          },
+          {
+            itemId: "2",
+            name: "Low Stock Item",
+            qty: 2,
+            price: 15.5,
+            description: "Low stock warning",
+          },
+        ];
       } else {
         try {
-          const url = CONFIG.INVENTORY_ITEMS
-            ? (CONFIG as any).buildProxyUrl(CONFIG.INVENTORY_ITEMS)
-            : `${(CONFIG as any).PROXY_BASE || ""}?path=${encodeURIComponent(
-                CONFIG.INVENTORY_ITEMS
-              )}`;
-
-          const resp = await apiService.axios.get(url);
-          const data = extractUpstreamData(resp.data);
-
-          if (Array.isArray(data)) {
-            inventoryItems = data as Item[];
-          } else if (data && Array.isArray((data as any).items)) {
-            inventoryItems = (data as any).items as Item[];
-          } else if (data && Array.isArray((data as any).inventory)) {
-            inventoryItems = (data as any).inventory as Item[];
-          } else {
-            if (data && typeof data === "object") {
-              const foundArray = Object.keys(data)
-                .map((k) => (data as any)[k])
-                .find((v) => Array.isArray(v));
-              if (Array.isArray(foundArray)) {
-                inventoryItems = foundArray as Item[];
-              }
-            }
-          }
+          // Use the new InventoryService to get all items
+          inventoryItems = await inventoryService.getAllItems();
         } catch (err: any) {
-          console.error("[Inventory] fetch error:", err);
-          throw err;
+          console.error("[Inventory] API Error:", err);
+
+          // Provide more specific error messages
+          if (err.response?.status === 401) {
+            throw new Error("Authentication failed. Please login again.");
+          } else if (err.response?.status === 403) {
+            throw new Error("Access denied. Admin privileges required.");
+          } else if (err.response?.status === 404) {
+            throw new Error(
+              "Inventory endpoint not found. Check configuration."
+            );
+          } else if (err.code === "NETWORK_ERROR" || !err.response) {
+            throw new Error(
+              "Network error. Check your connection and server status."
+            );
+          } else {
+            throw new Error(
+              `Server error: ${err.response?.status || "Unknown"}`
+            );
+          }
         }
       }
 
-      setItems(inventoryItems || []);
+      console.log("[Inventory] Loaded items:", inventoryItems.length);
+      setItems(inventoryItems);
     } catch (error: any) {
       console.error("[Inventory] Error loading data:", error);
-      Alert.alert("Error", "Failed to load inventory data. Please try again.", [
-        { text: "OK" },
-      ]);
+      Alert.alert(
+        "Error Loading Inventory",
+        error.message || "Failed to load inventory data. Please try again.",
+        [
+          { text: "Retry", onPress: () => loadInventoryData() },
+          { text: "Cancel" },
+        ]
+      );
     } finally {
       setLoading(false);
     }
@@ -114,6 +107,67 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
     setRefreshing(true);
     await loadInventoryData();
     setRefreshing(false);
+  };
+
+  const addItem = async (itemData: Omit<Item, "itemId">) => {
+    try {
+      console.log("[InventoryScreen] Adding new item:", itemData);
+
+      if (MOCK_MODE) {
+        // Mock implementation for testing
+        const newItem: Item = {
+          ...itemData,
+          itemId: Math.random().toString(),
+        };
+        setItems((prev) => [...prev, newItem]);
+        return;
+      }
+
+      // Real API call
+      const newItem = await inventoryService.createItem(itemData);
+      console.log("[InventoryScreen] Item added successfully:", newItem);
+
+      // Refresh the list to get updated data
+      await loadInventoryData();
+    } catch (error: any) {
+      console.error("[InventoryScreen] Error adding item:", error);
+      throw error; // Re-throw so modal can handle it
+    }
+  };
+
+  const updateItem = async (itemId: string, itemData: Partial<Item>) => {
+    try {
+      await inventoryService.updateItem(itemId, itemData);
+      Alert.alert("Success", "Item updated successfully!");
+      await loadInventoryData(); // Refresh the list
+    } catch (error: any) {
+      console.error("[Inventory] Error updating item:", error);
+      Alert.alert("Error", "Failed to update item. Please try again.");
+    }
+  };
+
+  const deleteItem = async (itemId: string, itemName: string) => {
+    Alert.alert(
+      "Confirm Delete",
+      `Are you sure you want to delete "${itemName}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await inventoryService.deleteItem(itemId);
+              Alert.alert("Success", "Item deleted successfully!");
+              await loadInventoryData(); // Refresh the list
+            } catch (error: any) {
+              console.error("[Inventory] Error deleting item:", error);
+              Alert.alert("Error", "Failed to delete item. Please try again.");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const renderItem = ({ item }: { item: Item }) => {
@@ -189,9 +243,8 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Inventory Management</Text>
         <TouchableOpacity
-          onPress={() =>
-            Alert.alert("Info", "Add item functionality coming soon!")
-          }
+          onPress={() => setShowAddModal(true)}
+          style={styles.addButton}
         >
           <Ionicons name="add" size={24} color="#007AFF" />
         </TouchableOpacity>
@@ -219,14 +272,37 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
           <View style={styles.emptyContainer}>
             <Ionicons name="cube-outline" size={64} color="#CCCCCC" />
             <Text style={styles.emptyText}>No items in inventory</Text>
-            <Text style={styles.emptySubtext}>Add items to get started</Text>
+            <Text style={styles.emptySubtext}>
+              {MOCK_MODE
+                ? "Enable real API in CONFIG.ts"
+                : "Add items to get started"}
+            </Text>
+            <Button
+              title="Enable Mock Mode"
+              onPress={() =>
+                Alert.alert(
+                  "Info",
+                  "Set MOCK_MODE: true in CONFIG.ts for testing"
+                )
+              }
+              variant="outline"
+              size="small"
+              style={{ marginTop: 16 }}
+            />
           </View>
         }
+      />
+
+      <AddItemModal
+        visible={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        onSubmit={addItem}
       />
     </View>
   );
 };
 
+// ... rest of styles remain the same
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -250,6 +326,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: "#333333",
+  },
+  addButton: {
+    padding: 4,
   },
   summaryContainer: {
     backgroundColor: "white",
