@@ -1,7 +1,7 @@
 // Configuration for API endpoints and app settings
 export const CONFIG = {
   // Change this to your n8n webhook base URL
-  BASE_URL: "https://your-n8n-instance.com/webhook",
+  BASE_URL: "https://n8n.dakshjain.me/webhook-test",
 
   // For local development, uncomment below:
   // BASE_URL: 'http://localhost:5678/webhook',
