@@ -1,3 +1,4 @@
+// AdminDashboard.tsx
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -32,29 +33,111 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     expiredItems: 0,
   });
 
+  // Fallback config values (in case CONFIG doesn't define them)
+  const MOCK_MODE = (CONFIG as any).MOCK_MODE ?? false;
+  const LOW_STOCK_THRESHOLD = (CONFIG as any).LOW_STOCK_THRESHOLD ?? 5;
+  const CURRENCY = (CONFIG as any).CURRENCY ?? "₹";
+  const INVENTORY_PATH = (CONFIG as any).INVENTORY_PATH ?? "inventory/items";
+
   useEffect(() => {
     loadDashboardData();
   }, []);
+
+  const extractUpstreamData = (proxyResp: any): any => {
+    // proxyResp could be:
+    // { ok, status, upstreamBody: "{}", ... }
+    // or { upstreamBody: { ... } }
+    // or direct data without wrapper
+    if (proxyResp == null) return null;
+
+    // If wrapper and upstreamBody is string -> try parse
+    if (typeof proxyResp.upstreamBody === "string") {
+      try {
+        return JSON.parse(proxyResp.upstreamBody);
+      } catch (e) {
+        // not JSON, return as raw string
+        return { raw: proxyResp.upstreamBody };
+      }
+    }
+
+    // If wrapper and upstreamBody is already object
+    if (proxyResp.upstreamBody && typeof proxyResp.upstreamBody === "object") {
+      return proxyResp.upstreamBody;
+    }
+
+    // If proxy returned the actual data directly
+    if (typeof proxyResp === "object" && !proxyResp.upstreamBody) {
+      return proxyResp;
+    }
+
+    // Fallback
+    return null;
+  };
 
   const loadDashboardData = async () => {
     try {
       setLoading(true);
 
-      let inventoryItems: Item[];
+      let inventoryItems: Item[] = [];
 
-      if (CONFIG.MOCK_MODE) {
-        inventoryItems = apiService.getMockInventoryItems();
+      // 1) MOCK mode support if your CONFIG or apiService supports it
+      if (MOCK_MODE) {
+        // prefer apiService.getMockInventoryItems if available
+        if (typeof (apiService as any).getMockInventoryItems === "function") {
+          inventoryItems = await (apiService as any).getMockInventoryItems();
+        } else {
+          // fallback empty array for mock mode
+          inventoryItems = [];
+        }
       } else {
-        inventoryItems = await apiService.getInventoryItems();
+        // Call the proxy URL for inventory
+        try {
+          // Build proxy URL (e.g. https://proxy/?path=inventory/items)
+          const url = CONFIG.INVENTORY_ITEMS
+            ? (CONFIG as any).buildProxyUrl(CONFIG.INVENTORY_ITEMS)
+            : `${(CONFIG as any).PROXY_BASE || ""}?path=${encodeURIComponent(
+                CONFIG.INVENTORY_ITEMS
+              )}`;
+
+          // Use the axios instance exported by apiService
+          const resp = await apiService.axios.get(url);
+
+          // The proxy wraps upstream response. Try to extract real data.
+          const data = extractUpstreamData(resp.data);
+
+          // Data could be { items: [...] } or directly an array
+          if (Array.isArray(data)) {
+            inventoryItems = data as Item[];
+          } else if (data && Array.isArray((data as any).items)) {
+            inventoryItems = (data as any).items as Item[];
+          } else if (data && Array.isArray((data as any).inventory)) {
+            inventoryItems = (data as any).inventory as Item[];
+          } else {
+            // If nothing matches, try to find first array in object
+            if (data && typeof data === "object") {
+              const foundArray = Object.keys(data)
+                .map((k) => (data as any)[k])
+                .find((v) => Array.isArray(v));
+              if (Array.isArray(foundArray)) {
+                inventoryItems = foundArray as Item[];
+              }
+            }
+          }
+        } catch (err: any) {
+          console.error("[Dashboard] fetch inventory error:", err);
+          throw err;
+        }
       }
 
-      setItems(inventoryItems);
-      calculateStats(inventoryItems);
+      setItems(inventoryItems || []);
+      calculateStats(inventoryItems || []);
     } catch (error: any) {
       console.error("[Dashboard] Error loading data:", error);
-      Alert.alert("Error", "Failed to load dashboard data. Please try again.", [
-        { text: "OK" },
-      ]);
+      Alert.alert(
+        "Error",
+        "Failed to load dashboard data. Please try again.",
+        [{ text: "OK" }]
+      );
     } finally {
       setLoading(false);
     }
@@ -75,7 +158,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     const newStats = {
       totalItems: inventoryItems.length,
       lowStockItems: inventoryItems.filter(
-        (item) => item.qty <= CONFIG.LOW_STOCK_THRESHOLD
+        (item) => (item.qty ?? 0) <= LOW_STOCK_THRESHOLD
       ).length,
       expiringSoonItems: inventoryItems.filter((item) => {
         if (!item.expiryDate) return false;
@@ -193,10 +276,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </Card>
 
         <Card
-          style={[
-            styles.statCard,
-            stats.expiredItems > 0 ? styles.dangerStat : null,
-          ]}
+          style={[styles.statCard, stats.expiredItems > 0 ? styles.dangerStat : null]}
         >
           <View style={styles.statContent}>
             <Ionicons
@@ -250,17 +330,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </View>
 
         {items.slice(0, 3).map((item, index) => (
-          <View key={item.itemId} style={styles.previewItem}>
+          <View key={item.itemId ?? `${index}`} style={styles.previewItem}>
             <View style={styles.previewItemInfo}>
               <Text style={styles.previewItemName} numberOfLines={1}>
                 {item.name}
               </Text>
               <Text style={styles.previewItemDetails}>
-                Stock: {item.qty} • {CONFIG.CURRENCY}
-                {item.price.toFixed(2)}
+                Stock: {item.qty ?? 0} • {CURRENCY}
+                {(item.price ?? 0).toFixed(2)}
               </Text>
             </View>
-            {item.qty <= CONFIG.LOW_STOCK_THRESHOLD && (
+            {(item.qty ?? 0) <= LOW_STOCK_THRESHOLD && (
               <Ionicons name="warning" size={16} color="#FF9500" />
             )}
           </View>

@@ -1,3 +1,4 @@
+// useAuth.tsx
 import React, {
   createContext,
   useContext,
@@ -112,6 +113,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             role: payload.role,
           };
 
+          // set axios header for future requests
+          await apiService.setToken(token);
+
           dispatch({
             type: "SET_USER",
             payload: {
@@ -140,7 +144,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       dispatch({ type: "SET_LOADING", payload: true });
 
       const response = await apiService.adminLogin({ email, password });
-      const payload = decodeJWTPayload(response.token);
+      // response should contain token property when successful
+      const token = response.token || (response?.data && response.data.token);
+
+      if (!token) {
+        throw new Error("Invalid admin token received");
+      }
+
+      const payload = decodeJWTPayload(token);
 
       if (payload && payload.role === "admin") {
         const user: User = {
@@ -150,17 +161,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           role: "admin",
         };
 
+        // store token and set axios header (apiService already stored it in adminLogin but double-set is ok)
+        await apiService.setToken(token);
+
         dispatch({
           type: "SET_USER",
-          payload: { user, token: response.token, userType: "admin" },
+          payload: { user, token, userType: "admin" },
         });
         console.log("[Auth] Admin signed in successfully");
       } else {
-        throw new Error("Invalid admin token received");
+        throw new Error("Invalid admin token content");
       }
     } catch (error: any) {
       dispatch({ type: "SET_LOADING", payload: false });
-      console.error("[Auth] Admin sign in error:", error.message);
+      console.error("[Auth] Admin sign in error:", error?.message || error);
       throw error;
     }
   };
@@ -174,7 +188,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       dispatch({ type: "SET_LOADING", payload: true });
 
       const response = await apiService.customerLogin({ name, email, phone });
-      const payload = decodeJWTPayload(response.token);
+
+      const token = response.token || (response?.data && response.data.token);
+
+      if (!token) {
+        throw new Error("Invalid customer token received");
+      }
+
+      const payload = decodeJWTPayload(token);
 
       if (payload && payload.role === "customer") {
         const user: User = {
@@ -185,9 +206,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           role: "customer",
         };
 
+        await apiService.setToken(token);
+
         dispatch({
           type: "SET_USER",
-          payload: { user, token: response.token, userType: "customer" },
+          payload: { user, token, userType: "customer" },
         });
         console.log("[Auth] Customer signed in successfully");
       } else {
@@ -195,7 +218,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
     } catch (error: any) {
       dispatch({ type: "SET_LOADING", payload: false });
-      console.error("[Auth] Customer sign in error:", error.message);
+      console.error("[Auth] Customer sign in error:", error?.message || error);
       throw error;
     }
   };
@@ -212,6 +235,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const clearStoredAuth = async () => {
     await apiService.clearToken();
+    // also clear user type key
+    try {
+      await SecureStore.deleteItemAsync(CONFIG.USER_TYPE_KEY);
+    } catch (e) {
+      // ignore
+    }
   };
 
   const getCurrentUser = (): User | null => {
@@ -264,7 +293,9 @@ const decodeJWTPayload = (token: string): any => {
     const payload = parts[1];
     // Add padding if necessary
     const paddedPayload = payload + "=".repeat((4 - (payload.length % 4)) % 4);
-    const decoded = atob(paddedPayload);
+
+    // atob may not be available in all RN environments; if not, you can add a small base64 decode helper.
+    const decoded = typeof atob === "function" ? atob(paddedPayload) : Buffer.from(paddedPayload, "base64").toString("utf8");
     return JSON.parse(decoded);
   } catch (error) {
     console.error("[Auth] Error decoding JWT:", error);
