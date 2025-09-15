@@ -11,6 +11,14 @@ import { Ionicons } from "@expo/vector-icons";
 import { Item } from "../types";
 import { CONFIG } from "../CONFIG";
 
+// Helper to detect mobile web
+const isMobileWeb =
+  Platform.OS === "web" &&
+  typeof navigator !== "undefined" &&
+  /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
+
 interface ItemActionModalProps {
   visible: boolean;
   onClose: () => void;
@@ -39,6 +47,11 @@ export const ItemActionModal: React.FC<ItemActionModalProps> = ({
         style={styles.overlay}
         activeOpacity={1}
         onPress={onClose}
+        // Improve mobile web touch handling
+        {...(isMobileWeb && {
+          onPressIn: () => {},
+          onPressOut: () => {},
+        })}
       >
         <View style={styles.modalContainer}>
           {/* Item Info Header */}
@@ -57,10 +70,15 @@ export const ItemActionModal: React.FC<ItemActionModalProps> = ({
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => {
-                // Close modal first, then trigger update to avoid modal interference
+                // Close modal first, then trigger update
                 onClose();
-                // Small delay to ensure modal closes before opening update modal
-                setTimeout(() => onUpdate(), 150);
+                // For mobile web, use immediate execution to avoid touch event issues
+                if (isMobileWeb || Platform.OS !== "web") {
+                  setTimeout(() => onUpdate(), 50);
+                } else {
+                  // Small delay for desktop web
+                  setTimeout(() => onUpdate(), 150);
+                }
               }}
               activeOpacity={0.7}
             >
@@ -81,10 +99,15 @@ export const ItemActionModal: React.FC<ItemActionModalProps> = ({
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => {
-                // Close modal first, then trigger delete to avoid modal interference
+                // Close modal first, then trigger delete
                 onClose();
-                // Small delay to ensure modal closes before showing alert
-                setTimeout(() => onDelete(), 150);
+                // For mobile web, use immediate execution to avoid touch event issues
+                if (isMobileWeb || Platform.OS !== "web") {
+                  setTimeout(() => onDelete(), 50);
+                } else {
+                  // Small delay for desktop web
+                  setTimeout(() => onDelete(), 150);
+                }
               }}
               activeOpacity={0.7}
             >

@@ -6,6 +6,7 @@ import React, {
   useEffect,
   ReactNode,
 } from "react";
+import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import { CONFIG } from "../CONFIG";
 import { AuthState, User } from "../types";
@@ -99,13 +100,50 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       dispatch({ type: "SET_LOADING", payload: true });
 
-      const token = await SecureStore.getItemAsync(CONFIG.JWT_STORAGE_KEY);
-      const userType = await SecureStore.getItemAsync(CONFIG.USER_TYPE_KEY);
+      // Read token from SecureStore, with web fallback to localStorage
+      let token = await SecureStore.getItemAsync(CONFIG.JWT_STORAGE_KEY);
+      let userType = await SecureStore.getItemAsync(CONFIG.USER_TYPE_KEY);
+      try {
+        if ((!token || !userType) && typeof window !== "undefined") {
+          const lsToken = window.localStorage?.getItem(CONFIG.JWT_STORAGE_KEY);
+          const lsUserType = window.localStorage?.getItem(CONFIG.USER_TYPE_KEY);
+          token = token || lsToken || null;
+          userType = userType || lsUserType || null;
+        }
+      } catch {}
 
-      if (token && userType) {
+      // Optionally skip restoring session on native apps so Welcome/Login shows up
+      const allowRestoreOnNative =
+        CONFIG.RESTORE_SESSION_ON_START_NATIVE !== false;
+      const isNative = Platform.OS === "ios" || Platform.OS === "android";
+
+      if (token && userType && (!isNative || allowRestoreOnNative)) {
         // Decode JWT to get user info (simple approach - in production, validate the token)
         const payload = decodeJWTPayload(token);
-        if (payload && payload.role === userType) {
+        // Helper: determine token expiry (if exp present)
+        const isExpired = (() => {
+          try {
+            const exp = (payload &&
+              (payload.exp || payload.expiresAt || payload.expiry)) as
+              | number
+              | undefined;
+            if (!exp) return false; // no exp claim, assume not expired (or handled server-side)
+            const expMs = exp > 1e12 ? exp : exp * 1000; // support seconds or ms
+            const now = Date.now();
+            // small clock skew allowance (30s)
+            return now > expMs - 30 * 1000;
+          } catch (e) {
+            return false;
+          }
+        })();
+
+        if (isExpired) {
+          console.warn(
+            "[Auth] Stored token expired. Clearing auth and showing Welcome."
+          );
+          await clearStoredAuth();
+          dispatch({ type: "CLEAR_USER" });
+        } else if (payload && payload.role === userType) {
           const user: User = {
             id: payload.sub || payload.id || "unknown",
             name: payload.name || (userType === "admin" ? "Admin" : "Customer"),
@@ -271,6 +309,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         try {
           await SecureStore.setItemAsync(CONFIG.JWT_STORAGE_KEY, token);
           await SecureStore.setItemAsync(CONFIG.USER_TYPE_KEY, "admin");
+          try {
+            if (typeof window !== "undefined") {
+              window.localStorage?.setItem(CONFIG.JWT_STORAGE_KEY, token);
+              window.localStorage?.setItem(CONFIG.USER_TYPE_KEY, "admin");
+            }
+          } catch {}
         } catch (err) {
           // If SecureStore is not available on web, apiService.setToken should have fallen back to localStorage.
           console.warn("[Auth] SecureStore write failed (maybe web).", err);
@@ -331,6 +375,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Persist token & user type so initializeAuth can restore session later
         await SecureStore.setItemAsync(CONFIG.JWT_STORAGE_KEY, token);
         await SecureStore.setItemAsync(CONFIG.USER_TYPE_KEY, "customer");
+        try {
+          if (typeof window !== "undefined") {
+            window.localStorage?.setItem(CONFIG.JWT_STORAGE_KEY, token);
+            window.localStorage?.setItem(CONFIG.USER_TYPE_KEY, "customer");
+          }
+        } catch {}
 
         dispatch({
           type: "SET_USER",
@@ -367,6 +417,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (e) {
       console.warn("[Auth] Error clearing stored auth keys:", e);
     }
+    // Clear web localStorage fallbacks
+    try {
+      if (typeof window !== "undefined") {
+        window.localStorage?.removeItem(CONFIG.JWT_STORAGE_KEY);
+        window.localStorage?.removeItem(CONFIG.USER_TYPE_KEY);
+      }
+    } catch {}
   };
 
   const getCurrentUser = (): User | null => {

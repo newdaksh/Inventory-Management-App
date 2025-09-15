@@ -1,9 +1,24 @@
 import React from "react";
-import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  StyleSheet,
+  Platform,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Item } from "../types";
 import { CONFIG } from "../CONFIG";
 import { Card } from "./Card";
+
+// Helper to detect mobile web
+const isMobileWeb =
+  Platform.OS === "web" &&
+  typeof navigator !== "undefined" &&
+  /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
 
 interface ItemRowProps {
   item: Item;
@@ -40,7 +55,7 @@ export const ItemRow: React.FC<ItemRowProps> = ({
         onPress={onPress}
         onLongPress={onLongPress}
         disabled={!onPress && !onLongPress}
-        delayLongPress={500}
+        delayLongPress={isMobileWeb ? 300 : 500} // Shorter delay for mobile web
       >
         <View style={styles.content}>
           {/* Item Image */}

@@ -7,6 +7,7 @@ import {
   RefreshControl,
   Alert,
   TouchableOpacity,
+  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -23,6 +24,14 @@ import { CONFIG } from "../CONFIG";
 import inventoryService from "../services/inventoryService";
 import { DrawerNavigationProp } from "@react-navigation/drawer";
 import { AdminDrawerParamList } from "../types";
+
+// Helper to detect mobile web
+const isMobileWeb =
+  Platform.OS === "web" &&
+  typeof navigator !== "undefined" &&
+  /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    navigator.userAgent
+  );
 
 type InventoryScreenNavigationProp = DrawerNavigationProp<
   AdminDrawerParamList,
@@ -228,7 +237,13 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
       <ItemRow
         item={item}
         onLongPress={() => handleItemLongPress(item)}
-        showAdminControls={false} // We'll use long press instead
+        // Enable direct admin controls for mobile web as fallback
+        showAdminControls={isMobileWeb}
+        onEdit={() => {
+          setSelectedItem(item);
+          setShowUpdateModal(true);
+        }}
+        onDelete={() => deleteItem(item.itemId, item.name)}
       />
     );
   };

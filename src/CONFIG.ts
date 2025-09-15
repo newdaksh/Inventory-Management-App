@@ -21,6 +21,11 @@ export const CONFIG = {
   JWT_STORAGE_KEY: "APP_JWT",
   USER_TYPE_KEY: "APP_USER_TYPE",
 
+  // Control session restoration behavior
+  // When false, native apps will not auto-restore session on startup (shows Welcome/Login)
+  // Web will still restore by default via localStorage to preserve UX
+  RESTORE_SESSION_ON_START_NATIVE: false,
+
   // Helper to build a full proxy URL with ?path=<webhookPath>
   buildProxyUrl(path: string) {
     const clean = (path || "").toString().replace(/^\/+/, "");

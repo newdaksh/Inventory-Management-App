@@ -30,8 +30,16 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
   const bounceAnim = useRef(new Animated.Value(1)).current;
 
   // Platform detection for web compatibility
-  const isWeb = Platform.OS === 'web';
-  const nativeDriver = !isWeb;
+  const isWeb = Platform.OS === "web";
+  // Detect if we're on mobile web by checking user agent
+  const isMobileWeb =
+    isWeb &&
+    typeof navigator !== "undefined" &&
+    /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+      navigator.userAgent
+    );
+  // Use native driver for native platforms and mobile web
+  const nativeDriver = !isWeb || isMobileWeb;
 
   useEffect(() => {
     // Entrance animations sequence
@@ -67,7 +75,7 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
     ]).start();
 
     // Continuous subtle rotation animation for icon
-    if (!isWeb) {
+    if (!isWeb || isMobileWeb) {
       const rotationLoop = Animated.loop(
         Animated.sequence([
           Animated.timing(rotateAnim, {
@@ -84,9 +92,9 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
           }),
         ])
       );
-      
+
       const timeout = setTimeout(() => rotationLoop.start(), 1500);
-      
+
       return () => {
         clearTimeout(timeout);
         rotationLoop.stop();
@@ -95,7 +103,7 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
   }, []);
 
   const handleAdminPress = () => {
-    if (!isWeb) {
+    if (!isWeb || isMobileWeb) {
       // Add press animation before navigation
       Animated.sequence([
         Animated.timing(scaleAnim, {
@@ -117,7 +125,7 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
   };
 
   const handleCustomerPress = () => {
-    if (!isWeb) {
+    if (!isWeb || isMobileWeb) {
       // Add press animation before navigation
       Animated.sequence([
         Animated.timing(scaleAnim, {
@@ -140,7 +148,7 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
 
   const spin = rotateAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
+    outputRange: ["0deg", "360deg"],
   });
 
   return (
@@ -186,19 +194,18 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
       />
 
       {/* Header */}
-      <Animated.View 
+      <Animated.View
         style={[
           styles.header,
           {
             opacity: fadeAnim,
-            transform: nativeDriver ? [
-              { translateY: slideAnim },
-              { scale: scaleAnim },
-            ] : [],
+            transform: nativeDriver
+              ? [{ translateY: slideAnim }, { scale: scaleAnim }]
+              : [],
           },
         ]}
       >
-        <Animated.View 
+        <Animated.View
           style={[
             styles.iconContainer,
             {
@@ -208,7 +215,7 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
         >
           <Ionicons name="business" size={60} color="#FFFFFF" />
         </Animated.View>
-        
+
         <Animatable.Text
           animation="fadeInUp"
           delay={500}
@@ -217,7 +224,7 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
         >
           Inventory Management
         </Animatable.Text>
-        
+
         <Animatable.Text
           animation="fadeInUp"
           delay={700}
@@ -229,7 +236,7 @@ export const Welcome: React.FC<WelcomeProps> = ({ navigation }) => {
       </Animated.View>
 
       {/* Login Options */}
-      <Animated.View 
+      <Animated.View
         style={[
           styles.content,
           {
@@ -329,8 +336,8 @@ const styles = StyleSheet.create({
     backgroundColor: ThemeColors.primary,
   },
   floatingElement: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    position: "absolute",
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
     borderRadius: 50,
   },
   element1: {
