@@ -174,6 +174,29 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   };
 
   const deleteItem = async (itemId: string, itemName: string) => {
+    // On web, use native confirm/alert for reliability
+    if (Platform.OS === "web") {
+      const ok =
+        typeof window !== "undefined" && window.confirm
+          ? window.confirm(`Delete "${itemName}"?`)
+          : true; // if confirm not available, proceed
+      if (!ok) return;
+      try {
+        await inventoryService.deleteItem(itemId);
+        if (typeof window !== "undefined" && window.alert) {
+          window.alert("Item deleted successfully!");
+        }
+        await loadInventoryData();
+      } catch (error: any) {
+        console.error("[Inventory] Error deleting item:", error);
+        if (typeof window !== "undefined" && window.alert) {
+          window.alert("Failed to delete item. Please try again.");
+        }
+      }
+      return;
+    }
+
+    // Native confirmation
     Alert.alert(
       "Confirm Delete",
       `Are you sure you want to delete "${itemName}"?`,
