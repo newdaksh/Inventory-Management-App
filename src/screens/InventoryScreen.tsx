@@ -195,6 +195,11 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   };
 
   const handleUpdateItem = () => {
+    console.log(
+      "[InventoryScreen] handleUpdateItem called, selectedItem:",
+      selectedItem
+    );
+    console.log("[InventoryScreen] Setting showUpdateModal to true");
     setShowUpdateModal(true);
   };
 
@@ -205,8 +210,12 @@ export const InventoryScreen: React.FC<InventoryScreenProps> = ({
   };
 
   const handleCloseActionModal = () => {
+    // Only close the action sheet; keep selectedItem for update/delete flows
+    console.log(
+      "[InventoryScreen] Closing action modal, selectedItem preserved:",
+      selectedItem
+    );
     setShowActionModal(false);
-    setSelectedItem(null);
   };
 
   const handleCloseUpdateModal = () => {

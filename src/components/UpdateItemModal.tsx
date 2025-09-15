@@ -8,6 +8,7 @@ import {
   Alert,
   ScrollView,
   Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Input } from "./Input";
@@ -28,6 +29,13 @@ export const UpdateItemModal: React.FC<UpdateItemModalProps> = ({
   onUpdate,
   item,
 }) => {
+  console.log(
+    "[UpdateItemModal] Rendered with visible:",
+    visible,
+    "item:",
+    item
+  );
+
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [qty, setQty] = useState("");
@@ -117,7 +125,13 @@ export const UpdateItemModal: React.FC<UpdateItemModalProps> = ({
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <View style={styles.modalContainer}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={styles.modalContainer}
+        >
+          <View style={styles.grabberContainer}>
+            <View style={styles.grabber} />
+          </View>
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Update Item</Text>
@@ -128,6 +142,9 @@ export const UpdateItemModal: React.FC<UpdateItemModalProps> = ({
 
           <ScrollView
             style={styles.content}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
             showsVerticalScrollIndicator={false}
           >
             {/* Form Fields */}
@@ -202,7 +219,7 @@ export const UpdateItemModal: React.FC<UpdateItemModalProps> = ({
               style={styles.updateButton}
             />
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -218,7 +235,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: "90%",
+    height: "85%", // ensure enough space for the form on mobile
+    width: "100%",
+    paddingBottom: Platform.OS === "ios" ? 24 : 12,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -230,6 +249,16 @@ const styles = StyleSheet.create({
         elevation: 10,
       },
     }),
+  },
+  grabberContainer: {
+    alignItems: "center",
+    paddingTop: 8,
+  },
+  grabber: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#D1D1D6",
   },
   header: {
     flexDirection: "row",
@@ -250,6 +279,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 100, // leave space for action buttons
   },
   form: {
     padding: 20,
@@ -275,6 +308,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: "#E0E0E0",
+    backgroundColor: "#FFFFFF",
     gap: 12,
   },
   cancelButton: {

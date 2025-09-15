@@ -143,10 +143,19 @@ class InventoryService {
     try {
       console.log("[InventoryService] Updating item:", itemId, itemData);
 
-      const response = await apiService.axios.put(this.getUrl(), {
-        itemId,
-        data: itemData,
-      });
+      const response = await apiService.axios.put(
+        this.getUrl(),
+        {
+          itemId,
+          data: itemData,
+          operation: "PUT",
+        },
+        {
+          headers: {
+            "x-operation": "PUT",
+          },
+        }
+      );
 
       console.log("[InventoryService] Item updated:", response.data);
 
@@ -156,8 +165,40 @@ class InventoryService {
         ...itemData,
       } as Item;
     } catch (error) {
-      console.error("[InventoryService] Error updating item:", error);
-      throw this.handleError(error);
+      const e1: any = error as any;
+      console.warn(
+        "[InventoryService] PUT failed, attempting POST fallback...",
+        e1?.message || e1
+      );
+      // Fallback to POST with operation override (some proxies restrict PUT/DELETE + CORS)
+      try {
+        const resp2 = await apiService.axios.post(
+          this.getUrl(),
+          {
+            itemId,
+            data: itemData,
+            operation: "PUT",
+          },
+          {
+            headers: {
+              "x-operation": "PUT",
+            },
+          }
+        );
+
+        console.log(
+          "[InventoryService] Item updated via POST fallback:",
+          resp2.data
+        );
+        return {
+          itemId,
+          ...itemData,
+        } as Item;
+      } catch (err2) {
+        const e2: any = err2 as any;
+        console.error("[InventoryService] POST fallback failed:", e2);
+        throw this.handleError(e2);
+      }
     }
   }
 
@@ -166,13 +207,34 @@ class InventoryService {
       console.log("[InventoryService] Deleting item:", itemId);
 
       await apiService.axios.delete(this.getUrl(), {
-        data: { itemId },
+        data: { itemId, operation: "DELETE" },
+        headers: { "x-operation": "DELETE" },
       });
 
       console.log("[InventoryService] Item deleted successfully");
     } catch (error) {
-      console.error("[InventoryService] Error deleting item:", error);
-      throw this.handleError(error);
+      const de1: any = error as any;
+      console.warn(
+        "[InventoryService] DELETE failed, attempting POST fallback...",
+        de1?.message || de1
+      );
+      try {
+        await apiService.axios.post(
+          this.getUrl(),
+          {
+            itemId,
+            operation: "DELETE",
+          },
+          {
+            headers: { "x-operation": "DELETE" },
+          }
+        );
+        console.log("[InventoryService] Item deleted via POST fallback");
+      } catch (err2) {
+        const de2: any = err2 as any;
+        console.error("[InventoryService] POST fallback delete failed:", de2);
+        throw this.handleError(de2);
+      }
     }
   }
 

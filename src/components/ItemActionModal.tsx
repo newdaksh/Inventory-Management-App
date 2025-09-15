@@ -57,8 +57,10 @@ export const ItemActionModal: React.FC<ItemActionModalProps> = ({
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => {
+                // Close modal first, then trigger update to avoid modal interference
                 onClose();
-                onUpdate();
+                // Small delay to ensure modal closes before opening update modal
+                setTimeout(() => onUpdate(), 150);
               }}
               activeOpacity={0.7}
             >
@@ -79,8 +81,10 @@ export const ItemActionModal: React.FC<ItemActionModalProps> = ({
             <TouchableOpacity
               style={styles.actionButton}
               onPress={() => {
+                // Close modal first, then trigger delete to avoid modal interference
                 onClose();
-                onDelete();
+                // Small delay to ensure modal closes before showing alert
+                setTimeout(() => onDelete(), 150);
               }}
               activeOpacity={0.7}
             >
